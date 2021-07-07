@@ -9,12 +9,12 @@ const canvasWidth = 1440;
 const canvasHeight = 810;
 const spacing = 4;
 const background = 'transparent';
-const imageSize = 200;
-// const outputImg = 'mosaic.png';
+const width = 200;
+const height = 200;
 
 const resize = {
-	width: imageSize,
-	height: imageSize,
+	width,
+	height,
 	fit: sharp.fit.cover,
 	position: 'top',
 };
@@ -38,6 +38,7 @@ async function getListOfImages() {
 }
 
 async function downloadImgAndResize(images) {
+	// images = images.slice(0, 51);
 	console.log('Downloading images...');
 	const bar = new cliProgress.SingleBar({});
 	bar.start(images.length, 0);
@@ -64,25 +65,28 @@ async function generateMosaic(sources) {
 
 	sources.sort( () => .5 - Math.random() );
 
+	const imageProportion = width / height;
+	console.log(imageProportion);
 	const proportion = canvasWidth / canvasHeight;
-	const width = Math.round(Math.pow(sources.length, 1/proportion));
-	const height = Math.ceil(sources.length / width);
-	const missing = width - sources.length % width;
+	const columns = Math.round(Math.pow(sources.length / imageProportion, 1/proportion));
+	const rows = Math.ceil(sources.length / columns);
+	const missing = columns - sources.length % columns;
 
 	if (missing > 0) {
 		const missingImg = await sharp(join(__dirname, '_files', 'missing.jpg'))
 			.on('error', (e) => console.log(image, e))
-			.resize(resize).toBuffer();
+			.resize({
+				...resize,
+				position: 'center',
+			}).toBuffer();
 
 		sources.push(...new Array(missing).fill(missingImg));
 	}
 
-	const imgSize = imageSize + spacing
-
 	return sharp({
 		create: {
-			width: width * imgSize + spacing,
-			height: height * imgSize + spacing,
+			width: columns * (width + spacing) + spacing,
+			height: rows * (height + spacing) + spacing,
 			channels: 4,
 			background,
 		}
@@ -90,8 +94,8 @@ async function generateMosaic(sources) {
 	.composite(sources.map((s, i) => {
 		return {
 			input: s,
-			left: (i % width) * imgSize + spacing,
-			top: Math.trunc(i/width) * imgSize + spacing,
+			left: (i % columns) * (width + spacing) + spacing,
+			top: Math.trunc(i/columns) * (height + spacing) + spacing,
 		}
 	}))
 	.png()
