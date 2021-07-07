@@ -2,6 +2,7 @@ const Crawler = require("crawler");
 const got = require('got');
 const sharp = require('sharp');
 const cliProgress = require('cli-progress');
+const express = require('express')
 
 const canvasWidth = 1440;
 const canvasHeight = 810;
@@ -76,7 +77,7 @@ async function generateMosaic(sources) {
 
 	const imgSize = imageSize + spacing
 
-	sharp({
+	return sharp({
 		create: {
 			width: width * imgSize + spacing,
 			height: height * imgSize + spacing,
@@ -98,9 +99,24 @@ async function generateMosaic(sources) {
 			fit: 'contain',
 		})
 	)
-	.toFile(outputImg);
+	.toBuffer()
+	// .toFile(outputImg);
 }
 
-getListOfImages()
-	.then(downloadImgAndResize)
-	.then(generateMosaic);
+const app = express()
+
+app.get('/', (req, res) => {
+  res.send('Hello World!')
+})
+
+app.get('/api/mosaic', async (req, res) => {
+	const img = await getListOfImages()
+		.then(downloadImgAndResize)
+		.then(generateMosaic);
+
+	res.contentType('png');
+	res.setHeader('Cache-Control', 's-max-age=1, stale-while-revalidate');
+	res.send(img);
+})
+
+module.exports = app;
