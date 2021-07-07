@@ -5,19 +5,18 @@ const cliProgress = require('cli-progress');
 const express = require('express')
 const { join } = require('path')
 
-const canvasWidth = 1440;
-const canvasHeight = 810;
-const spacing = 4;
-const background = 'transparent';
-const width = 200;
-const height = 200;
-
-const resize = {
-	width,
-	height,
-	fit: sharp.fit.cover,
+const defaultConfig = {
+	canvasWidth: 1440,
+	canvasHeight: 810,
+	spacing: 4,
+	background: 'transparent',
+	width: 200,
+	height: 200,
 	position: 'top',
-};
+	maxImages: 0,
+	extraImages: -1,
+	random: 1
+}
 
 async function getListOfImages() {
 	console.log('Getting list of files...');
@@ -37,8 +36,10 @@ async function getListOfImages() {
 	});
 }
 
-async function downloadImgAndResize(images) {
-	// images = images.slice(0, 51);
+async function downloadImgAndResize({width, height, position, maxImages}, images) {
+	if (maxImages) {
+		images = images.slice(0, maxImages);
+	}
 	console.log('Downloading images...');
 	const bar = new cliProgress.SingleBar({});
 	bar.start(images.length, 0);
@@ -49,7 +50,12 @@ async function downloadImgAndResize(images) {
 			const response = await got(image);
 			buffers.push(await sharp(response.rawBody, {failOnError: false})
 				.on('error', (e) => console.log(image, e))
-				.resize(resize).toBuffer());
+				.resize({
+					width,
+					height,
+					fit: sharp.fit.cover,
+					position,
+				}).toBuffer());
 		} catch(e) {
 			continue;
 		} finally {
@@ -60,23 +66,27 @@ async function downloadImgAndResize(images) {
 	return buffers;
 }
 
-async function generateMosaic(sources) {
+async function generateMosaic({width, height, background, spacing, canvasHeight, canvasWidth, extraImages, random}, sources) {
 	console.log('Generating mosaic...');
 
-	sources.sort( () => .5 - Math.random() );
+	if (random) {
+		sources.sort( () => .5 - Math.random() );
+	}
 
+	const length = sources.length + (extraImages > -1 ? extraImages : 0);
 	const imageProportion = width / height;
-	console.log(imageProportion);
 	const proportion = canvasWidth / canvasHeight;
-	const columns = Math.round(Math.pow(sources.length / imageProportion, 1/proportion));
-	const rows = Math.ceil(sources.length / columns);
-	const missing = columns - sources.length % columns;
+	const columns = Math.round(Math.pow(length / imageProportion, 1/proportion));
+	const rows = Math.ceil(length / columns);
+	const missing = extraImages > -1 ? extraImages : columns - length % columns;
 
 	if (missing > 0) {
 		const missingImg = await sharp(join(__dirname, '_files', 'missing.jpg'))
 			.on('error', (e) => console.log(image, e))
 			.resize({
-				...resize,
+				width,
+				height,
+				fit: sharp.fit.cover,
 				position: 'center',
 			}).toBuffer();
 
@@ -116,13 +126,28 @@ app.get('/', (req, res) => {
 })
 
 app.get('/api/mosaic', async (req, res) => {
-	const img = await getListOfImages()
-		.then(downloadImgAndResize)
-		.then(generateMosaic);
+	const config = {
+		...defaultConfig,
+		...req.query
+	};
+
+	for (const [key, value] of Object.entries(defaultConfig)) {
+		if (typeof value === 'number') {
+			config[key] = parseFloat(config[key], 10);
+			if (isNaN(config[key])) {
+				res.status(400);
+				return res.send({error: `Invalid value for property '${key}'`});
+			}
+		}
+	}
+
+	const list = await getListOfImages();
+	const imgs = await downloadImgAndResize(config, list);
+	const mosaic = await generateMosaic(config, imgs)
 
 	res.contentType('png');
 	res.setHeader('Cache-Control', 's-max-age=1, stale-while-revalidate');
-	res.send(img);
+	res.send(mosaic);
 })
 
 module.exports = app;
