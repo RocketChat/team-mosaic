@@ -3,13 +3,14 @@ const got = require('got');
 const sharp = require('sharp');
 const cliProgress = require('cli-progress');
 const express = require('express')
+const { join } = require('path')
 
 const canvasWidth = 1440;
 const canvasHeight = 810;
 const spacing = 4;
 const background = 'transparent';
 const imageSize = 200;
-const outputImg = 'mosaic.png';
+// const outputImg = 'mosaic.png';
 
 const resize = {
 	width: imageSize,
@@ -69,7 +70,8 @@ async function generateMosaic(sources) {
 	const missing = width - sources.length % width;
 
 	if (missing > 0) {
-		const missingImg = await sharp('missing.jpg')
+		const missingImg = await sharp(join(__dirname, '_files', 'missing.jpg'))
+			.on('error', (e) => console.log(image, e))
 			.resize(resize).toBuffer();
 
 		sources.push(...new Array(missing).fill(missingImg));
