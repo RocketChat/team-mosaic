@@ -74,9 +74,13 @@ async function generateMosaic({width, height, background, spacing, canvasHeight,
 	}
 
 	const length = sources.length + (extraImages > -1 ? extraImages : 0);
-	const imageProportion = width / height;
-	const proportion = canvasWidth / canvasHeight;
-	const columns = Math.round(Math.pow(length / imageProportion, 1/proportion));
+
+	const canvasArea = canvasHeight * canvasWidth;
+	const originalImageArea = width * height;
+	const imageArea = Math.trunc(canvasArea / length);
+	const imageProportion = Math.sqrt(originalImageArea / imageArea);
+	const imageWidth = width / imageProportion;
+	const columns = Math.trunc(canvasWidth / imageWidth);
 	const rows = Math.ceil(length / columns);
 	const missing = extraImages > -1 ? extraImages : columns - length % columns;
 
