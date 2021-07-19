@@ -15,7 +15,8 @@ const defaultConfig = {
 	position: 'top',
 	maxImages: 0,
 	extraImages: -1,
-	random: 1
+	random: 1,
+	simulate: 0
 }
 
 async function getListOfImages() {
@@ -36,10 +37,23 @@ async function getListOfImages() {
 	});
 }
 
-async function downloadImgAndResize({width, height, position, maxImages}, images) {
+async function downloadImgAndResize({width, height, position, maxImages, simulate}, images) {
 	if (maxImages) {
 		images = images.slice(0, maxImages);
 	}
+
+	if (simulate) {
+		const missingImg = await sharp(join(__dirname, '_files', 'missing.jpg'))
+			.on('error', (e) => console.log(image, e))
+			.resize({
+				width,
+				height,
+				fit: sharp.fit.cover,
+				position: 'center',
+			}).toBuffer();
+		return images.map(() => missingImg);
+	}
+
 	console.log('Downloading images...');
 	const bar = new cliProgress.SingleBar({});
 	bar.start(images.length, 0);
@@ -84,6 +98,7 @@ async function generateMosaic({width, height, background, spacing, canvasHeight,
 	const rows = Math.ceil(length / columns);
 	const missing = extraImages > -1 ? extraImages : columns - length % columns;
 
+	// console.log(canvasWidth / imageWidth, canvasWidth, imageWidth, imageWidth * canvasWidth / imageWidth, length)
 	if (missing > 0) {
 		const missingImg = await sharp(join(__dirname, '_files', 'missing.jpg'))
 			.on('error', (e) => console.log(image, e))
