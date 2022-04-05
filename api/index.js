@@ -1,4 +1,3 @@
-const Crawler = require("crawler");
 const got = require('got');
 const sharp = require('sharp');
 const cliProgress = require('cli-progress');
@@ -21,20 +20,9 @@ const defaultConfig = {
 
 async function getListOfImages() {
 	console.log('Getting list of files...');
-	return new Promise((resolve) => {
-		const c = new Crawler({
-			callback: function(error, res, done) {
-				if (error) {
-					return console.log({error})
-				}
 
-				const images = res.$('.img-profile')
-				resolve(images.get().filter((i) => i.attribs && i.attribs.style).map((i) => i.attribs.style.replace('background-image: url(', '').replace(/\)$/, '')));
-			}
-		})
-
-		c.queue('https://rocket.chat/team')
-	});
+	const data = await got('https://people.cloud.rocket.chat/people').json();
+	return data.map((i) => i.Photo);
 }
 
 async function downloadImgAndResize({width, height, position, maxImages, simulate}, images) {
@@ -58,24 +46,30 @@ async function downloadImgAndResize({width, height, position, maxImages, simulat
 	const bar = new cliProgress.SingleBar({});
 	bar.start(images.length, 0);
 
-	const buffers = [];
-	for await (const image of images) {
-		try {
-			const response = await got(image);
-			buffers.push(await sharp(response.rawBody, {failOnError: false})
-				.on('error', (e) => console.log(image, e))
-				.resize({
-					width,
-					height,
-					fit: sharp.fit.cover,
-					position,
-				}).toBuffer());
-		} catch(e) {
-			continue;
-		} finally {
-			bar.increment();
-		}
+	const promises = []
+	for (const image of images) {
+		promises.push(new Promise(async (resolve, reject) => {
+			try {
+				const response = await got(image);
+				resolve(await sharp(response.rawBody, {failOnError: false})
+					.on('error', (e) => console.log(image, e))
+					.resize({
+						width,
+						height,
+						fit: sharp.fit.cover,
+						position,
+					}).toBuffer());
+			} catch(e) {
+				// continue;
+				console.error(e);
+				resolve();
+			} finally {
+				bar.increment();
+			}
+		}));
 	}
+
+	const buffers = await Promise.all(promises);
 	bar.stop();
 	return buffers;
 }
