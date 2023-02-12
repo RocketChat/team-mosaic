@@ -6,7 +6,7 @@
   "dependencies": {
     "cli-progress": "^3.9.0",
     "express": "^4.17.1",
-    "got": "^11.8.2",
+    "got": "^12.5.3",
     "mosaic-node-generator": "^1.1.5",
     "nf-photo-collage": "^1.4.0",
     "sharp": "^0.28.3"
